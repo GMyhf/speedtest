@@ -1,0 +1,476 @@
+{
+  "metadata": {
+    "created_at": "2026-07-07T22:51:44+08:00",
+    "utc_offset": "+08:00",
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "python": "3.14.0",
+    "local_ip": "192.168.1.12",
+    "default_gateway": "192.168.1.1",
+    "app_group_fault": true,
+    "deep": true
+  },
+  "assessment": {
+    "primary": "本次基础连通性基本正常",
+    "severity": "ok",
+    "reasons": [
+      "中国移动 App 已提示“存在群障/线路状态异常”，这通常是运营商接入网、OLT、分光、光缆或区域设备侧问题。",
+      "默认网关、公网 IP、DNS 或 HTTP 至少有多项正常。"
+    ],
+    "next_steps": [
+      "如果 App 仍显示群障，以 App 群障为准继续报修；群障可能是间歇性或影响部分目的地址。",
+      "在故障发生时重新运行一次，并加 --deep 生成路由跟踪证据。"
+    ],
+    "counts": {
+      "lan": {
+        "total": 1,
+        "ok": 1,
+        "warn": 0,
+        "fail": 0,
+        "info": 0
+      },
+      "wan_ping": {
+        "total": 4,
+        "ok": 3,
+        "warn": 0,
+        "fail": 1,
+        "info": 0
+      },
+      "tcp": {
+        "total": 4,
+        "ok": 4,
+        "warn": 0,
+        "fail": 0,
+        "info": 0
+      },
+      "dns": {
+        "total": 6,
+        "ok": 6,
+        "warn": 0,
+        "fail": 0,
+        "info": 0
+      },
+      "http": {
+        "total": 3,
+        "ok": 3,
+        "warn": 0,
+        "fail": 0,
+        "info": 0
+      },
+      "route": {
+        "total": 2,
+        "ok": 2,
+        "warn": 0,
+        "fail": 0,
+        "info": 0
+      }
+    }
+  },
+  "results": [
+    {
+      "category": "local",
+      "name": "environment",
+      "status": "info",
+      "summary": "本机 IP：192.168.1.12；默认网关：192.168.1.1。",
+      "details": {
+        "gateway_probe": {
+          "ok": true,
+          "returncode": 0,
+          "stdout": "route to: default\ndestination: default\n       mask: default\n    gateway: 192.168.1.1\n  interface: en1\n      flags: <UP,GATEWAY,DONE,STATIC,PRCLONING,GLOBAL>\n recvpipe  sendpipe  ssthresh  rtt,msec    rttvar  hopcount      mtu     expire\n       0         0         0         0         0         0      1500         0",
+          "stderr": "",
+          "elapsed_ms": 4,
+          "command": [
+            "route",
+            "-n",
+            "get",
+            "default"
+          ]
+        }
+      }
+    },
+    {
+      "category": "lan",
+      "name": "gateway 192.168.1.1",
+      "status": "ok",
+      "summary": "可达，0% 丢包，平均 23.5 ms。",
+      "details": {
+        "target": "192.168.1.1",
+        "parsed": {
+          "packet_loss_percent": 0.0,
+          "sent": 4,
+          "received": 4,
+          "min_ms": 5.718,
+          "avg_ms": 23.472,
+          "max_ms": 73.707
+        },
+        "raw": {
+          "ok": true,
+          "returncode": 0,
+          "stdout": "PING 192.168.1.1 (192.168.1.1): 56 data bytes\n64 bytes from 192.168.1.1: icmp_seq=0 ttl=64 time=73.707 ms\n64 bytes from 192.168.1.1: icmp_seq=1 ttl=64 time=6.459 ms\n64 bytes from 192.168.1.1: icmp_seq=2 ttl=64 time=8.005 ms\n64 bytes from 192.168.1.1: icmp_seq=3 ttl=64 time=5.718 ms\n\n--- 192.168.1.1 ping statistics ---\n4 packets transmitted, 4 packets received, 0.0% packet loss\nround-trip min/avg/max/stddev = 5.718/23.472/73.707/29.015 ms",
+          "stderr": "",
+          "elapsed_ms": 3024,
+          "command": [
+            "ping",
+            "-n",
+            "-c",
+            "4",
+            "-W",
+            "1500",
+            "192.168.1.1"
+          ]
+        }
+      }
+    },
+    {
+      "category": "wan_ping",
+      "name": "AliDNS 223.5.5.5",
+      "status": "ok",
+      "summary": "可达，0% 丢包，平均 13.8 ms。",
+      "details": {
+        "target": "223.5.5.5",
+        "parsed": {
+          "packet_loss_percent": 0.0,
+          "sent": 4,
+          "received": 4,
+          "min_ms": 12.116,
+          "avg_ms": 13.837,
+          "max_ms": 14.756
+        },
+        "raw": {
+          "ok": true,
+          "returncode": 0,
+          "stdout": "PING 223.5.5.5 (223.5.5.5): 56 data bytes\n64 bytes from 223.5.5.5: icmp_seq=0 ttl=51 time=12.116 ms\n64 bytes from 223.5.5.5: icmp_seq=1 ttl=51 time=14.674 ms\n64 bytes from 223.5.5.5: icmp_seq=2 ttl=51 time=13.803 ms\n64 bytes from 223.5.5.5: icmp_seq=3 ttl=51 time=14.756 ms\n\n--- 223.5.5.5 ping statistics ---\n4 packets transmitted, 4 packets received, 0.0% packet loss\nround-trip min/avg/max/stddev = 12.116/13.837/14.756/1.062 ms",
+          "stderr": "",
+          "elapsed_ms": 3043,
+          "command": [
+            "ping",
+            "-n",
+            "-c",
+            "4",
+            "-W",
+            "1500",
+            "223.5.5.5"
+          ]
+        }
+      }
+    },
+    {
+      "category": "wan_ping",
+      "name": "TencentDNS 119.29.29.29",
+      "status": "ok",
+      "summary": "可达，0% 丢包，平均 15.1 ms。",
+      "details": {
+        "target": "119.29.29.29",
+        "parsed": {
+          "packet_loss_percent": 0.0,
+          "sent": 4,
+          "received": 4,
+          "min_ms": 13.884,
+          "avg_ms": 15.128,
+          "max_ms": 17.181
+        },
+        "raw": {
+          "ok": true,
+          "returncode": 0,
+          "stdout": "PING 119.29.29.29 (119.29.29.29): 56 data bytes\n64 bytes from 119.29.29.29: icmp_seq=0 ttl=52 time=13.884 ms\n64 bytes from 119.29.29.29: icmp_seq=1 ttl=52 time=17.181 ms\n64 bytes from 119.29.29.29: icmp_seq=2 ttl=52 time=14.884 ms\n64 bytes from 119.29.29.29: icmp_seq=3 ttl=52 time=14.563 ms\n\n--- 119.29.29.29 ping statistics ---\n4 packets transmitted, 4 packets received, 0.0% packet loss\nround-trip min/avg/max/stddev = 13.884/15.128/17.181/1.239 ms",
+          "stderr": "",
+          "elapsed_ms": 3039,
+          "command": [
+            "ping",
+            "-n",
+            "-c",
+            "4",
+            "-W",
+            "1500",
+            "119.29.29.29"
+          ]
+        }
+      }
+    },
+    {
+      "category": "wan_ping",
+      "name": "114DNS 114.114.114.114",
+      "status": "fail",
+      "summary": "不可达或全部超时。",
+      "details": {
+        "target": "114.114.114.114",
+        "parsed": {
+          "packet_loss_percent": 100.0,
+          "sent": 4,
+          "received": 0
+        },
+        "raw": {
+          "ok": false,
+          "returncode": 2,
+          "stdout": "PING 114.114.114.114 (114.114.114.114): 56 data bytes\nRequest timeout for icmp_seq 0\nRequest timeout for icmp_seq 1\nRequest timeout for icmp_seq 2\n\n--- 114.114.114.114 ping statistics ---\n4 packets transmitted, 0 packets received, 100.0% packet loss",
+          "stderr": "",
+          "elapsed_ms": 5533,
+          "command": [
+            "ping",
+            "-n",
+            "-c",
+            "4",
+            "-W",
+            "1500",
+            "114.114.114.114"
+          ]
+        }
+      }
+    },
+    {
+      "category": "wan_ping",
+      "name": "BaiduDNS 180.76.76.76",
+      "status": "ok",
+      "summary": "可达，0% 丢包，平均 11.7 ms。",
+      "details": {
+        "target": "180.76.76.76",
+        "parsed": {
+          "packet_loss_percent": 0.0,
+          "sent": 4,
+          "received": 4,
+          "min_ms": 10.573,
+          "avg_ms": 11.716,
+          "max_ms": 12.317
+        },
+        "raw": {
+          "ok": true,
+          "returncode": 0,
+          "stdout": "PING 180.76.76.76 (180.76.76.76): 56 data bytes\n64 bytes from 180.76.76.76: icmp_seq=0 ttl=52 time=11.954 ms\n64 bytes from 180.76.76.76: icmp_seq=1 ttl=52 time=12.018 ms\n64 bytes from 180.76.76.76: icmp_seq=2 ttl=52 time=10.573 ms\n64 bytes from 180.76.76.76: icmp_seq=3 ttl=52 time=12.317 ms\n\n--- 180.76.76.76 ping statistics ---\n4 packets transmitted, 4 packets received, 0.0% packet loss\nround-trip min/avg/max/stddev = 10.573/11.716/12.317/0.674 ms",
+          "stderr": "",
+          "elapsed_ms": 3041,
+          "command": [
+            "ping",
+            "-n",
+            "-c",
+            "4",
+            "-W",
+            "1500",
+            "180.76.76.76"
+          ]
+        }
+      }
+    },
+    {
+      "category": "tcp",
+      "name": "AliDNS 53",
+      "status": "ok",
+      "summary": "TCP 223.5.5.5:53 连接成功，耗时 25 ms。",
+      "details": {
+        "host": "223.5.5.5",
+        "port": 53,
+        "elapsed_ms": 25
+      }
+    },
+    {
+      "category": "tcp",
+      "name": "www.baidu.com:443",
+      "status": "ok",
+      "summary": "TCP www.baidu.com:443 连接成功，耗时 29 ms。",
+      "details": {
+        "host": "www.baidu.com",
+        "port": 443,
+        "elapsed_ms": 29
+      }
+    },
+    {
+      "category": "tcp",
+      "name": "www.qq.com:443",
+      "status": "ok",
+      "summary": "TCP www.qq.com:443 连接成功，耗时 31 ms。",
+      "details": {
+        "host": "www.qq.com",
+        "port": 443,
+        "elapsed_ms": 31
+      }
+    },
+    {
+      "category": "tcp",
+      "name": "www.10086.cn:443",
+      "status": "ok",
+      "summary": "TCP www.10086.cn:443 连接成功，耗时 43 ms。",
+      "details": {
+        "host": "www.10086.cn",
+        "port": 443,
+        "elapsed_ms": 43
+      }
+    },
+    {
+      "category": "dns",
+      "name": "system www.baidu.com",
+      "status": "ok",
+      "summary": "系统 DNS 解析成功，4 ms，返回 2409:8c00:6c21:118b:0:ff:b0e8:f003, 2409:8c00:6c21:11eb:0:ff:b0bf:59ca, 39.156.70.239, 39.156.70.46。",
+      "details": {
+        "domain": "www.baidu.com",
+        "ips": [
+          "2409:8c00:6c21:118b:0:ff:b0e8:f003",
+          "2409:8c00:6c21:11eb:0:ff:b0bf:59ca",
+          "39.156.70.239",
+          "39.156.70.46"
+        ],
+        "elapsed_ms": 4
+      }
+    },
+    {
+      "category": "dns",
+      "name": "system www.qq.com",
+      "status": "ok",
+      "summary": "系统 DNS 解析成功，3 ms，返回 111.30.178.240, 111.30.185.195, 111.30.185.60, 2409:8702:4860:1002::33。",
+      "details": {
+        "domain": "www.qq.com",
+        "ips": [
+          "111.30.178.240",
+          "111.30.185.195",
+          "111.30.185.60",
+          "2409:8702:4860:1002::33",
+          "2409:8702:4860:106::3e"
+        ],
+        "elapsed_ms": 3
+      }
+    },
+    {
+      "category": "dns",
+      "name": "system www.10086.cn",
+      "status": "ok",
+      "summary": "系统 DNS 解析成功，1 ms，返回 2409:8080:381e:e301::1:14, 36.160.2.81。",
+      "details": {
+        "domain": "www.10086.cn",
+        "ips": [
+          "2409:8080:381e:e301::1:14",
+          "36.160.2.81"
+        ],
+        "elapsed_ms": 1
+      }
+    },
+    {
+      "category": "dns",
+      "name": "AliDNS 223.5.5.5",
+      "status": "ok",
+      "summary": "www.baidu.com 解析成功，87 ms，返回 39.156.70.46。",
+      "details": {
+        "server": "223.5.5.5",
+        "domain": "www.baidu.com",
+        "ips": [
+          "39.156.70.46"
+        ],
+        "elapsed_ms": 87
+      }
+    },
+    {
+      "category": "dns",
+      "name": "TencentDNS 119.29.29.29",
+      "status": "ok",
+      "summary": "www.baidu.com 解析成功，6 ms，返回 39.156.70.46。",
+      "details": {
+        "server": "119.29.29.29",
+        "domain": "www.baidu.com",
+        "ips": [
+          "39.156.70.46"
+        ],
+        "elapsed_ms": 6
+      }
+    },
+    {
+      "category": "dns",
+      "name": "114DNS 114.114.114.114",
+      "status": "ok",
+      "summary": "www.baidu.com 解析成功，6 ms，返回 39.156.70.46。",
+      "details": {
+        "server": "114.114.114.114",
+        "domain": "www.baidu.com",
+        "ips": [
+          "39.156.70.46"
+        ],
+        "elapsed_ms": 6
+      }
+    },
+    {
+      "category": "http",
+      "name": "https://www.baidu.com/",
+      "status": "ok",
+      "summary": "HTTP 206，读取 227 字节，耗时 123 ms。",
+      "details": {
+        "url": "https://www.baidu.com/",
+        "status_code": 206,
+        "bytes": 227,
+        "elapsed_ms": 123
+      }
+    },
+    {
+      "category": "http",
+      "name": "https://www.qq.com/",
+      "status": "ok",
+      "summary": "HTTP 200，读取 2048 字节，耗时 86 ms。",
+      "details": {
+        "url": "https://www.qq.com/",
+        "status_code": 200,
+        "bytes": 2048,
+        "elapsed_ms": 86
+      }
+    },
+    {
+      "category": "http",
+      "name": "https://www.10086.cn/",
+      "status": "ok",
+      "summary": "HTTP 206，读取 2048 字节，耗时 139 ms。",
+      "details": {
+        "url": "https://www.10086.cn/",
+        "status_code": 206,
+        "bytes": 2048,
+        "elapsed_ms": 139
+      }
+    },
+    {
+      "category": "route",
+      "name": "223.5.5.5",
+      "status": "ok",
+      "summary": "路由跟踪完成。",
+      "details": {
+        "target": "223.5.5.5",
+        "raw": {
+          "ok": true,
+          "returncode": 0,
+          "stdout": "1  192.168.1.1  5.932 ms\n 2  100.87.128.1  7.146 ms\n 3  211.136.66.25  6.795 ms\n 4  111.13.0.170  9.422 ms\n 5  *\n 6  39.156.7.37  10.913 ms\n 7  *\n 8  *\n 9  *\n10  *\n11  *\n12  *",
+          "stderr": "traceroute to 223.5.5.5 (223.5.5.5), 12 hops max, 40 byte packets",
+          "elapsed_ms": 14087,
+          "command": [
+            "traceroute",
+            "-n",
+            "-w",
+            "2",
+            "-q",
+            "1",
+            "-m",
+            "12",
+            "223.5.5.5"
+          ]
+        }
+      }
+    },
+    {
+      "category": "route",
+      "name": "119.29.29.29",
+      "status": "ok",
+      "summary": "路由跟踪完成。",
+      "details": {
+        "target": "119.29.29.29",
+        "raw": {
+          "ok": true,
+          "returncode": 0,
+          "stdout": "1  192.168.1.1  5.699 ms\n 2  100.87.128.1  6.449 ms\n 3  211.136.66.25  6.075 ms\n 4  111.13.0.170  8.069 ms\n 5  111.13.0.173  12.906 ms\n 6  39.156.7.177  12.130 ms\n 7  39.156.7.177  11.681 ms\n 8  *\n 9  *\n10  *\n11  *\n12  *",
+          "stderr": "traceroute to 119.29.29.29 (119.29.29.29), 12 hops max, 40 byte packets",
+          "elapsed_ms": 10097,
+          "command": [
+            "traceroute",
+            "-n",
+            "-w",
+            "2",
+            "-q",
+            "1",
+            "-m",
+            "12",
+            "119.29.29.29"
+          ]
+        }
+      }
+    }
+  ]
+}

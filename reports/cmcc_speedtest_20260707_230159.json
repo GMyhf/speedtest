@@ -1,0 +1,28 @@
+{
+  "metadata": {
+    "created_at": "2026-07-07T23:01:26+08:00",
+    "utc_offset": "+08:00",
+    "platform": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+    "python": "3.14.0",
+    "tool": "networkQuality"
+  },
+  "status": "warn",
+  "parsed": {},
+  "raw": {
+    "ok": true,
+    "returncode": 0,
+    "stdout": "==== SUMMARY ====\nUplink capacity: 105.894 Mbps\nDownlink capacity: 50.408 Mbps\nUplink Responsiveness: Low (334.365 milliseconds | 179 RPM)\nDownlink Responsiveness: Low (436.658 milliseconds | 137 RPM)\nIdle Latency: 162.095 milliseconds | 370 RPM",
+    "stderr": "",
+    "elapsed_ms": 32775,
+    "command": [
+      "networkQuality",
+      "-s",
+      "-M",
+      "30"
+    ]
+  },
+  "notes": [
+    "macOS networkQuality 使用 Apple 测速服务，结果适合判断家庭宽带实际下载/上载能力。",
+    "测速时请暂停网盘、视频、游戏更新和其他大流量任务；最好用网线直连路由器或光猫 LAN 口。"
+  ]
+}

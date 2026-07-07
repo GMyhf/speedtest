@@ -1,0 +1,25 @@
+家庭宽带下载/上载测速报告
+==================================
+生成时间: 2026-07-07T23:03:53+08:00 (UTC+08:00)
+系统环境: macOS-26.5.1-arm64-arm-64bit-Mach-O / Python 3.14.0
+测速工具: networkQuality
+
+下载速度: 35.16 Mbps (4.39 MB/s)
+上载速度: 100.89 Mbps (12.61 MB/s)
+空闲延迟: 150.3 ms
+
+说明
+----------------------------------
+- macOS networkQuality 使用 Apple 测速服务，结果适合判断家庭宽带实际下载/上载能力。
+- 测速时请暂停网盘、视频、游戏更新和其他大流量任务；最好用网线直连路由器或光猫 LAN 口。
+- 运营商套餐通常按 Mbps 标注；下载软件常按 MB/s 显示。换算关系：1 MB/s = 8 Mbps。
+- 例如 300M 宽带理论下载约 37.5 MB/s，1000M 宽带理论下载约 125 MB/s，实际会受 Wi-Fi、网线、路由器和服务器影响。
+
+原始输出
+----------------------------------
+==== SUMMARY ====
+Uplink capacity: 100.889 Mbps
+Downlink capacity: 35.158 Mbps
+Uplink Responsiveness: Low (409.739 milliseconds | 146 RPM)
+Downlink Responsiveness: Low (392.712 milliseconds | 152 RPM)
+Idle Latency: 150.262 milliseconds | 399 RPM
