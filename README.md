@@ -31,11 +31,19 @@ python3 cmcc_broadband_diag.py --app-group-fault --deep
 networkQuality -s
 ```
 
+在 Rocky Linux/Linux 上，系统没有 `networkQuality`。脚本会自动优先调用 Ookla 官方 `speedtest`，其次调用 `speedtest-cli`：
+
+```bash
+command -v speedtest || command -v speedtest-cli
+```
+
 也可以用本目录脚本统一生成报告：
 
 ```bash
 python3 cmcc_broadband_diag.py --speedtest
 ```
+
+如果 Rocky Linux 输出“没有可用测速工具”，需要先安装 `speedtest` 或 `speedtest-cli`，或者用运营商 App/测速网站交叉测试。
 
 输出里的 `下载速度` 和 `上载速度` 会同时显示 `Mbps` 和 `MB/s`。运营商套餐通常写的是 `Mbps`，下载软件常显示 `MB/s`，换算关系是：
 

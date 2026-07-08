@@ -486,6 +486,158 @@ def parse_network_quality_output(output: str) -> Dict[str, Any]:
     return parsed
 
 
+def load_json_from_output(output: str) -> Dict[str, Any]:
+    text = output.strip()
+    if not text:
+        raise ValueError("empty JSON output")
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start < 0 or end <= start:
+            raise
+        data = json.loads(text[start : end + 1])
+    if not isinstance(data, dict):
+        raise ValueError("speedtest JSON root is not an object")
+    return data
+
+
+def parse_ookla_speedtest_json(output: str) -> Dict[str, Any]:
+    data = load_json_from_output(output)
+    parsed: Dict[str, Any] = {}
+
+    download = data.get("download")
+    if isinstance(download, dict) and isinstance(download.get("bandwidth"), (int, float)):
+        parsed["download_mbps"] = float(download["bandwidth"]) * 8 / 1_000_000
+
+    upload = data.get("upload")
+    if isinstance(upload, dict) and isinstance(upload.get("bandwidth"), (int, float)):
+        parsed["upload_mbps"] = float(upload["bandwidth"]) * 8 / 1_000_000
+
+    ping = data.get("ping")
+    if isinstance(ping, dict):
+        if isinstance(ping.get("latency"), (int, float)):
+            parsed["idle_latency_ms"] = float(ping["latency"])
+        if isinstance(ping.get("jitter"), (int, float)):
+            parsed["jitter_ms"] = float(ping["jitter"])
+
+    server = data.get("server")
+    if isinstance(server, dict):
+        labels = [
+            str(server[key])
+            for key in ("name", "location", "country")
+            if server.get(key)
+        ]
+        if labels:
+            parsed["server"] = " / ".join(labels)
+
+    result = data.get("result")
+    if isinstance(result, dict) and result.get("url"):
+        parsed["result_url"] = str(result["url"])
+    return parsed
+
+
+def parse_speedtest_cli_json(output: str) -> Dict[str, Any]:
+    data = load_json_from_output(output)
+    parsed: Dict[str, Any] = {}
+
+    if isinstance(data.get("download"), (int, float)):
+        parsed["download_mbps"] = float(data["download"]) / 1_000_000
+    if isinstance(data.get("upload"), (int, float)):
+        parsed["upload_mbps"] = float(data["upload"]) / 1_000_000
+    if isinstance(data.get("ping"), (int, float)):
+        parsed["idle_latency_ms"] = float(data["ping"])
+
+    server = data.get("server")
+    if isinstance(server, dict):
+        labels = [
+            str(server[key])
+            for key in ("sponsor", "name", "country")
+            if server.get(key)
+        ]
+        if labels:
+            parsed["server"] = " / ".join(labels)
+    return parsed
+
+
+def speedtest_command_kind(command: str) -> str:
+    out = run_cmd([command, "--help"], timeout=5)
+    text = (out.get("stdout", "") + "\n" + out.get("stderr", "")).lower()
+    if "ookla" in text or ("--format" in text and "--accept-license" in text):
+        return "ookla"
+    if "speedtest-cli" in text or "--json" in text:
+        return "speedtest-cli"
+    return "unknown"
+
+
+def speedtest_report(
+    metadata: Dict[str, Any],
+    status: str,
+    parsed: Dict[str, Any],
+    raw: Dict[str, Any],
+    notes: Sequence[str],
+) -> Dict[str, Any]:
+    return {
+        "metadata": metadata,
+        "status": status,
+        "parsed": parsed,
+        "raw": raw,
+        "notes": list(notes),
+    }
+
+
+def run_ookla_speedtest(command: str, max_runtime_sec: int, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    raw = run_cmd(
+        [command, "--accept-license", "--accept-gdpr", "--format=json"],
+        timeout=max_runtime_sec + 45,
+    )
+    parsed: Dict[str, Any] = {}
+    parse_error = None
+    if raw.get("stdout"):
+        try:
+            parsed = parse_ookla_speedtest_json(raw["stdout"])
+        except Exception as exc:
+            parse_error = repr(exc)
+            raw["parse_error"] = parse_error
+    status = "ok" if raw.get("ok") and parsed.get("download_mbps") and parsed.get("upload_mbps") else "warn"
+    metadata["tool"] = "Ookla speedtest"
+    return speedtest_report(
+        metadata,
+        status,
+        parsed,
+        raw,
+        [
+            "Linux/Rocky Linux 使用 Ookla speedtest CLI 时，脚本会读取 JSON 输出并换算为 Mbps 与 MB/s。",
+            "首次运行可能需要接受 Ookla 许可；脚本已传入 --accept-license 和 --accept-gdpr。",
+            "测速时请暂停网盘、视频、游戏更新和其他大流量任务；最好用网线直连路由器或光猫 LAN 口。",
+        ],
+    )
+
+
+def run_speedtest_cli(command: str, max_runtime_sec: int, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    raw = run_cmd([command, "--secure", "--json"], timeout=max_runtime_sec + 45)
+    parsed: Dict[str, Any] = {}
+    if raw.get("stdout"):
+        try:
+            parsed = parse_speedtest_cli_json(raw["stdout"])
+        except Exception as exc:
+            raw["parse_error"] = repr(exc)
+    status = "ok" if raw.get("ok") and parsed.get("download_mbps") and parsed.get("upload_mbps") else "warn"
+    metadata["tool"] = "speedtest-cli"
+    return speedtest_report(
+        metadata,
+        status,
+        parsed,
+        raw,
+        [
+            "Linux/Rocky Linux 使用 speedtest-cli 时，脚本会通过 HTTPS 获取配置，读取 JSON 输出并换算为 Mbps 与 MB/s。",
+            "speedtest-cli 会自动选择测速服务器，结果适合粗略判断家庭宽带下载/上载能力。",
+            "测速时请暂停网盘、视频、游戏更新和其他大流量任务；最好用网线直连路由器或光猫 LAN 口。",
+        ],
+    )
+
+
 def run_speedtest(max_runtime_sec: int) -> Dict[str, Any]:
     metadata: Dict[str, Any] = {
         "created_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
@@ -513,13 +665,31 @@ def run_speedtest(max_runtime_sec: int) -> Dict[str, Any]:
             ],
         }
 
+    speedtest = shutil.which("speedtest")
+    if speedtest:
+        kind = speedtest_command_kind(speedtest)
+        if kind == "ookla":
+            return run_ookla_speedtest(speedtest, max_runtime_sec, metadata)
+        if kind == "speedtest-cli":
+            return run_speedtest_cli(speedtest, max_runtime_sec, metadata)
+
+        report = run_ookla_speedtest(speedtest, max_runtime_sec, metadata)
+        if report.get("raw", {}).get("ok") or report.get("parsed"):
+            return report
+        return run_speedtest_cli(speedtest, max_runtime_sec, metadata)
+
+    speedtest_cli = shutil.which("speedtest-cli")
+    if speedtest_cli:
+        return run_speedtest_cli(speedtest_cli, max_runtime_sec, metadata)
+
     return {
         "metadata": metadata,
         "status": "fail",
         "parsed": {},
-        "raw": {"ok": False, "stderr": "networkQuality not found"},
+        "raw": {"ok": False, "stderr": "no supported speedtest tool found"},
         "notes": [
-            "当前系统没有 macOS networkQuality。可安装 Ookla speedtest CLI，或用运营商 App/测速网站交叉测试。",
+            "当前系统没有可用测速工具。macOS 可用 networkQuality；Rocky Linux/Linux 可安装 Ookla speedtest CLI 或 speedtest-cli。",
+            "Rocky Linux 上可先检查命令是否存在：command -v speedtest 或 command -v speedtest-cli。",
             "上载测速必须有远端服务器接收数据；单靠 ping、DNS 或普通网页下载不能准确测上载带宽。",
         ],
     }
@@ -814,8 +984,14 @@ def render_speedtest_report(report: Dict[str, Any]) -> str:
 
     if isinstance(parsed.get("idle_latency_ms"), (int, float)):
         lines.append(f"空闲延迟: {parsed['idle_latency_ms']:.1f} ms")
+    if isinstance(parsed.get("jitter_ms"), (int, float)):
+        lines.append(f"抖动: {parsed['jitter_ms']:.1f} ms")
     if parsed.get("responsiveness_label") and parsed.get("responsiveness_rpm"):
         lines.append(f"响应性: {parsed['responsiveness_label']} ({parsed['responsiveness_rpm']} RPM)")
+    if parsed.get("server"):
+        lines.append(f"测速服务器: {parsed['server']}")
+    if parsed.get("result_url"):
+        lines.append(f"结果链接: {parsed['result_url']}")
 
     lines.append("")
     lines.append("说明")
@@ -925,6 +1101,26 @@ Idle Latency: 162.095 milliseconds | 370 RPM
     assert round(parsed_nq_new["upload_mbps"], 3) == 105.894
     assert round(parsed_nq_new["idle_latency_ms"], 3) == 162.095
 
+    ookla = """
+{"type":"result","ping":{"jitter":0.583,"latency":5.778},"download":{"bandwidth":92345678},"upload":{"bandwidth":12345678},"server":{"name":"China Mobile","location":"Shanghai","country":"China"},"result":{"url":"https://www.speedtest.net/result/c/abc"}}
+"""
+    parsed_ookla = parse_ookla_speedtest_json(ookla)
+    assert round(parsed_ookla["download_mbps"], 3) == 738.765
+    assert round(parsed_ookla["upload_mbps"], 3) == 98.765
+    assert round(parsed_ookla["idle_latency_ms"], 3) == 5.778
+    assert round(parsed_ookla["jitter_ms"], 3) == 0.583
+    assert "China Mobile" in parsed_ookla["server"]
+    assert parsed_ookla["result_url"].startswith("https://")
+
+    cli = """
+{"download":502000000.0,"upload":84200000.0,"ping":13.25,"server":{"sponsor":"CMCC","name":"Shanghai","country":"China"}}
+"""
+    parsed_cli = parse_speedtest_cli_json(cli)
+    assert round(parsed_cli["download_mbps"], 3) == 502.0
+    assert round(parsed_cli["upload_mbps"], 3) == 84.2
+    assert round(parsed_cli["idle_latency_ms"], 3) == 13.25
+    assert "CMCC" in parsed_cli["server"]
+
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -941,7 +1137,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--output-dir", default="reports", help="报告输出目录，默认 reports。")
     parser.add_argument("--no-write", action="store_true", help="只在屏幕显示报告，不写入文件。")
     parser.add_argument("--json", action="store_true", help="在屏幕输出 JSON，而不是文本报告。")
-    parser.add_argument("--speedtest", action="store_true", help="测下载和上载速度；macOS 会调用系统 networkQuality。")
+    parser.add_argument("--speedtest", action="store_true", help="测下载和上载速度；macOS 用 networkQuality，Linux 用 speedtest/speedtest-cli。")
     parser.add_argument("--speedtest-seconds", type=int, default=60, help="测速最大运行秒数，默认 60。")
     parser.add_argument("--self-test", action="store_true", help="运行脚本内部自检，不访问网络。")
     return parser.parse_args(argv)
