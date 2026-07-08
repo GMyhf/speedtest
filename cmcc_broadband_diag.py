@@ -469,7 +469,6 @@ def parse_network_quality_output(output: str) -> Dict[str, Any]:
     patterns = {
         "download_mbps": r"(?:Download|Downlink)\s+capacity\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*([KMG]bps)",
         "upload_mbps": r"(?:Upload|Uplink)\s+capacity\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*([KMG]bps)",
-        "responsiveness": r"Responsiveness\s*:\s*([A-Za-z]+)\s*\(([0-9]+)\s*RPM\)",
         "idle_latency_ms": r"Idle Latency\s*:\s*([0-9]+(?:\.[0-9]+)?)\s*(?:ms|milliseconds)",
     }
     for key, pattern in patterns.items():
@@ -478,11 +477,26 @@ def parse_network_quality_output(output: str) -> Dict[str, Any]:
             continue
         if key in ("download_mbps", "upload_mbps"):
             parsed[key] = normalize_to_mbps(float(match.group(1)), match.group(2))
-        elif key == "responsiveness":
-            parsed["responsiveness_label"] = match.group(1)
-            parsed["responsiveness_rpm"] = int(match.group(2))
         elif key == "idle_latency_ms":
             parsed[key] = float(match.group(1))
+
+    responsiveness_pattern = re.compile(
+        r"(?:(Uplink|Downlink)\s+)?Responsiveness\s*:\s*([A-Za-z]+)\s*"
+        r"\((?:[^|)]*\|\s*)?([0-9]+)\s*RPM\)"
+    )
+    for match in responsiveness_pattern.finditer(output):
+        direction = match.group(1)
+        label = match.group(2)
+        rpm = int(match.group(3))
+        if direction == "Downlink":
+            parsed["download_responsiveness_label"] = label
+            parsed["download_responsiveness_rpm"] = rpm
+        elif direction == "Uplink":
+            parsed["upload_responsiveness_label"] = label
+            parsed["upload_responsiveness_rpm"] = rpm
+        else:
+            parsed["responsiveness_label"] = label
+            parsed["responsiveness_rpm"] = rpm
     return parsed
 
 
@@ -587,6 +601,59 @@ def speedtest_report(
     }
 
 
+def has_speedtest_value(parsed: Dict[str, Any], key: str) -> bool:
+    return isinstance(parsed.get(key), (int, float))
+
+
+def speedtest_is_complete(parsed: Dict[str, Any]) -> bool:
+    return has_speedtest_value(parsed, "download_mbps") and has_speedtest_value(parsed, "upload_mbps")
+
+
+def network_quality_notes(raw: Dict[str, Any], parsed: Dict[str, Any]) -> List[str]:
+    notes = [
+        "macOS networkQuality 使用 Apple 测速服务，结果适合判断家庭宽带实际下载/上载能力。",
+        "测速时请暂停网盘、视频、游戏更新和其他大流量任务；最好用网线直连路由器或光猫 LAN 口。",
+    ]
+    missing = []
+    if not has_speedtest_value(parsed, "download_mbps"):
+        missing.append("下载")
+    if not has_speedtest_value(parsed, "upload_mbps"):
+        missing.append("上载")
+    if missing:
+        notes.insert(
+            0,
+            f"本次 networkQuality 未测得{'、'.join(missing)}速度，报告属于不完整测速；不要只用这一次结果判断完整带宽。",
+        )
+
+    raw_text = "\n".join(str(raw.get(key, "")) for key in ("stdout", "stderr"))
+    if re.search(r"TLS error|NSURLErrorDomain Code=-1200|-9816", raw_text, re.IGNORECASE):
+        notes.insert(
+            0,
+            "networkQuality 返回 TLS 错误，Apple 测速服务连接未完整完成；如正在使用代理/VPN/安全软件，建议关闭后重测并交叉验证。",
+        )
+    elif not raw.get("ok"):
+        first_line = next(
+            (
+                line.strip()
+                for line in raw_text.splitlines()
+                if line.strip() and not line.strip().startswith("====")
+            ),
+            "",
+        )
+        if first_line:
+            notes.insert(0, f"networkQuality 返回错误：{first_line}")
+    return notes
+
+
+def run_network_quality_speedtest(max_runtime_sec: int, metadata: Dict[str, Any]) -> Dict[str, Any]:
+    command = ["networkQuality", "-s", "-M", str(max_runtime_sec)]
+    raw = run_cmd(command, timeout=max_runtime_sec + 45)
+    parsed = parse_network_quality_output(raw.get("stdout", "") + "\n" + raw.get("stderr", ""))
+    status = "ok" if raw.get("ok") and speedtest_is_complete(parsed) else "warn"
+    metadata["tool"] = "networkQuality"
+    return speedtest_report(metadata, status, parsed, raw, network_quality_notes(raw, parsed))
+
+
 def run_ookla_speedtest(command: str, max_runtime_sec: int, metadata: Dict[str, Any]) -> Dict[str, Any]:
     raw = run_cmd(
         [command, "--accept-license", "--accept-gdpr", "--format=json"],
@@ -600,7 +667,7 @@ def run_ookla_speedtest(command: str, max_runtime_sec: int, metadata: Dict[str, 
         except Exception as exc:
             parse_error = repr(exc)
             raw["parse_error"] = parse_error
-    status = "ok" if raw.get("ok") and parsed.get("download_mbps") and parsed.get("upload_mbps") else "warn"
+    status = "ok" if raw.get("ok") and speedtest_is_complete(parsed) else "warn"
     metadata["tool"] = "Ookla speedtest"
     return speedtest_report(
         metadata,
@@ -623,7 +690,7 @@ def run_speedtest_cli(command: str, max_runtime_sec: int, metadata: Dict[str, An
             parsed = parse_speedtest_cli_json(raw["stdout"])
         except Exception as exc:
             raw["parse_error"] = repr(exc)
-    status = "ok" if raw.get("ok") and parsed.get("download_mbps") and parsed.get("upload_mbps") else "warn"
+    status = "ok" if raw.get("ok") and speedtest_is_complete(parsed) else "warn"
     metadata["tool"] = "speedtest-cli"
     return speedtest_report(
         metadata,
@@ -638,33 +705,7 @@ def run_speedtest_cli(command: str, max_runtime_sec: int, metadata: Dict[str, An
     )
 
 
-def run_speedtest(max_runtime_sec: int) -> Dict[str, Any]:
-    metadata: Dict[str, Any] = {
-        "created_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
-        "utc_offset": utc_offset(),
-        "platform": platform.platform(),
-        "python": sys.version.split()[0],
-        "tool": None,
-    }
-    max_runtime_sec = max(10, min(max_runtime_sec, 180))
-
-    if platform.system().lower() == "darwin" and shutil.which("networkQuality"):
-        command = ["networkQuality", "-s", "-M", str(max_runtime_sec)]
-        raw = run_cmd(command, timeout=max_runtime_sec + 45)
-        parsed = parse_network_quality_output(raw.get("stdout", "") + "\n" + raw.get("stderr", ""))
-        status = "ok" if raw.get("ok") and parsed.get("download_mbps") and parsed.get("upload_mbps") else "warn"
-        metadata["tool"] = "networkQuality"
-        return {
-            "metadata": metadata,
-            "status": status,
-            "parsed": parsed,
-            "raw": raw,
-            "notes": [
-                "macOS networkQuality 使用 Apple 测速服务，结果适合判断家庭宽带实际下载/上载能力。",
-                "测速时请暂停网盘、视频、游戏更新和其他大流量任务；最好用网线直连路由器或光猫 LAN 口。",
-            ],
-        }
-
+def run_cli_speedtest_tool(max_runtime_sec: int, metadata: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     speedtest = shutil.which("speedtest")
     if speedtest:
         kind = speedtest_command_kind(speedtest)
@@ -681,6 +722,45 @@ def run_speedtest(max_runtime_sec: int) -> Dict[str, Any]:
     speedtest_cli = shutil.which("speedtest-cli")
     if speedtest_cli:
         return run_speedtest_cli(speedtest_cli, max_runtime_sec, metadata)
+    return None
+
+
+def run_speedtest(max_runtime_sec: int) -> Dict[str, Any]:
+    metadata: Dict[str, Any] = {
+        "created_at": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
+        "utc_offset": utc_offset(),
+        "platform": platform.platform(),
+        "python": sys.version.split()[0],
+        "tool": None,
+    }
+    max_runtime_sec = max(10, min(max_runtime_sec, 180))
+
+    if platform.system().lower() == "darwin" and shutil.which("networkQuality"):
+        network_quality_report = run_network_quality_speedtest(max_runtime_sec, metadata.copy())
+        if network_quality_report["status"] == "ok":
+            return network_quality_report
+
+        fallback_report = run_cli_speedtest_tool(max_runtime_sec, metadata.copy())
+        if fallback_report is not None:
+            fallback_tool = fallback_report["metadata"].get("tool") or "备用测速工具"
+            fallback_report["metadata"]["tool"] = f"networkQuality -> {fallback_tool}"
+            fallback_report["raw"]["previous_networkQuality"] = network_quality_report["raw"]
+            fallback_report["raw"]["previous_networkQuality_parsed"] = network_quality_report["parsed"]
+            fallback_report["notes"].insert(
+                0,
+                "networkQuality 未完整完成，脚本已自动改用备用测速工具；JSON 中保留前一次 networkQuality 原始输出。",
+            )
+            return fallback_report
+
+        network_quality_report["notes"].insert(
+            0,
+            "本机未找到 speedtest/speedtest-cli 备用工具；本次报告只包含 networkQuality 的部分结果。",
+        )
+        return network_quality_report
+
+    cli_report = run_cli_speedtest_tool(max_runtime_sec, metadata)
+    if cli_report is not None:
+        return cli_report
 
     return {
         "metadata": metadata,
@@ -969,6 +1049,8 @@ def render_speedtest_report(report: Dict[str, Any]) -> str:
     lines.append(f"生成时间: {metadata['created_at']} (UTC{metadata.get('utc_offset', '')})")
     lines.append(f"系统环境: {metadata['platform']} / Python {metadata['python']}")
     lines.append(f"测速工具: {metadata.get('tool') or '未找到可用工具'}")
+    status_text = {"ok": "完整", "warn": "不完整/需复测", "fail": "失败"}.get(report.get("status"), "未知")
+    lines.append(f"测速状态: {status_text}")
     lines.append("")
 
     download = parsed.get("download_mbps")
@@ -986,8 +1068,16 @@ def render_speedtest_report(report: Dict[str, Any]) -> str:
         lines.append(f"空闲延迟: {parsed['idle_latency_ms']:.1f} ms")
     if isinstance(parsed.get("jitter_ms"), (int, float)):
         lines.append(f"抖动: {parsed['jitter_ms']:.1f} ms")
-    if parsed.get("responsiveness_label") and parsed.get("responsiveness_rpm"):
+    if parsed.get("responsiveness_label") and isinstance(parsed.get("responsiveness_rpm"), int):
         lines.append(f"响应性: {parsed['responsiveness_label']} ({parsed['responsiveness_rpm']} RPM)")
+    if parsed.get("download_responsiveness_label") and isinstance(parsed.get("download_responsiveness_rpm"), int):
+        lines.append(
+            f"下载响应性: {parsed['download_responsiveness_label']} ({parsed['download_responsiveness_rpm']} RPM)"
+        )
+    if parsed.get("upload_responsiveness_label") and isinstance(parsed.get("upload_responsiveness_rpm"), int):
+        lines.append(
+            f"上载响应性: {parsed['upload_responsiveness_label']} ({parsed['upload_responsiveness_rpm']} RPM)"
+        )
     if parsed.get("server"):
         lines.append(f"测速服务器: {parsed['server']}")
     if parsed.get("result_url"):
@@ -1100,6 +1190,25 @@ Idle Latency: 162.095 milliseconds | 370 RPM
     assert round(parsed_nq_new["download_mbps"], 3) == 50.408
     assert round(parsed_nq_new["upload_mbps"], 3) == 105.894
     assert round(parsed_nq_new["idle_latency_ms"], 3) == 162.095
+    assert parsed_nq_new["download_responsiveness_rpm"] == 137
+    assert parsed_nq_new["upload_responsiveness_rpm"] == 179
+
+    nq_tls_partial = """
+==== SUMMARY ====
+Downlink capacity: 10.670 Mbps
+Downlink Responsiveness: Low (3.540 seconds | 16 RPM)
+Idle Latency: 314.403 milliseconds | 190 RPM
+Error: Error Domain=NSURLErrorDomain Code=-1200 "A TLS error caused the secure connection to fail."
+"""
+    parsed_nq_tls = parse_network_quality_output(nq_tls_partial)
+    assert round(parsed_nq_tls["download_mbps"], 3) == 10.67
+    assert parsed_nq_tls["download_responsiveness_rpm"] == 16
+    assert "upload_mbps" not in parsed_nq_tls
+    assert "TLS 错误" in network_quality_notes({"ok": False, "stdout": nq_tls_partial, "stderr": ""}, parsed_nq_tls)[0]
+
+    nq_zero_rpm = "Downlink Responsiveness: Low (inf seconds | 0 RPM)"
+    parsed_nq_zero = parse_network_quality_output(nq_zero_rpm)
+    assert parsed_nq_zero["download_responsiveness_rpm"] == 0
 
     ookla = """
 {"type":"result","ping":{"jitter":0.583,"latency":5.778},"download":{"bandwidth":92345678},"upload":{"bandwidth":12345678},"server":{"name":"China Mobile","location":"Shanghai","country":"China"},"result":{"url":"https://www.speedtest.net/result/c/abc"}}
